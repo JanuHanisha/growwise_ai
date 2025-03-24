@@ -1,0 +1,109 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder
+import joblib
+
+
+# Load dataset
+df = pd.read_csv("data_core.csv")
+
+# Remove extra spaces from column names
+df.columns = df.columns.str.strip()
+
+# Drop unnecessary columns
+df = df.drop(columns=["Unnamed: 6"], errors="ignore")
+
+# Convert categorical text data to lowercase to avoid case sensitivity issues
+df["Soil Type"] = df["Soil Type"].str.lower().str.strip()
+df["Locality"] = df["Locality"].str.lower().str.strip()
+df["Crop Type"] = df["Crop Type"].str.lower().str.strip()
+
+# Check for empty rows and remove them
+df = df.dropna(subset=["Soil Type", "Locality", "Crop Type"])
+
+# Encode categorical variables
+label_encoder_soil = LabelEncoder()
+label_encoder_locality = LabelEncoder()
+label_encoder_crop = LabelEncoder()
+
+df["Soil Type"] = label_encoder_soil.fit_transform(df["Soil Type"])
+df["Locality"] = label_encoder_locality.fit_transform(df["Locality"])
+df["Crop Type"] = label_encoder_crop.fit_transform(df["Crop Type"])
+
+# Select features and target
+X = df[["Soil Type", "Locality"]]
+y = df["Crop Type"]
+
+# Ensure X and y are not empty
+if X.shape[0] == 0 or y.shape[0] == 0:
+    raise ValueError("Dataset is empty after preprocessing. Check column names and data.")
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train RandomForest model
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+
+# Organic Farming Methods (Rule-Based)
+organic_methods = {
+    "wheat": "Use compost, crop rotation with legumes, and biofertilizers.",
+    "rice": "Apply Azospirillum, blue-green algae, and farmyard manure.",
+    "maize": "Use green manure, vermicompost, and neem-based pest control.",
+    "barley": "Utilize farmyard manure and potassium-rich bio-fertilizers.",
+    "soybean": "Adopt rhizobium inoculation and organic mulch.",
+    "cotton": "Use neem-based pesticides, composting, and natural predators.",
+    "millets": "Apply compost, cow dung manure, and organic pest repellents.",
+    "sugarcane": "Use bio-compost, press mud, and drip irrigation to conserve water.",
+    "groundnuts": "Use rhizobium culture and gypsum for improved soil health.",
+    "pulses": "Apply biofertilizers like phosphate-solubilizing bacteria.",
+    "oilseeds": "Use organic mulching and neem cake fertilizer.",
+    "tobacco": "Apply vermicompost and neem-based insect repellents.",
+    "paddy": "Use azolla, biofertilizers, and organic weed management."
+}
+
+# Function to predict crop and recommend organic methods
+def predict_crop_and_recommend(soil_type, locality):
+    """Predict the best crop and recommend organic methods."""
+    # Convert input to lowercase and strip spaces
+    soil_type = soil_type.lower().strip()
+    locality = locality.lower().strip()
+
+    # Validate if inputs exist in trained LabelEncoder
+    if soil_type not in label_encoder_soil.classes_:
+        return f"Error: '{soil_type}' is not a recognized soil type. Please enter a valid soil type."
+    if locality not in label_encoder_locality.classes_:
+        return f"Error: '{locality}' is not a recognized locality. Please enter a valid locality."
+
+    # Transform input and predict crop
+    soil_encoded = label_encoder_soil.transform([soil_type])[0]
+    locality_encoded = label_encoder_locality.transform([locality])[0]
+    predicted_crop = model.predict([[soil_encoded, locality_encoded]])[0]
+    
+    # Fix: Ensure the crop name is properly formatted before lookup
+    crop_name = label_encoder_crop.inverse_transform([predicted_crop])[0].strip().lower()
+    
+    # Get organic farming methods
+    organic_suggestion = organic_methods.get(crop_name, "No specific organic method available.")
+
+    return {
+        "Predicted Crop": crop_name,
+        "Organic Methods": organic_suggestion
+    }
+
+# User Input
+soil_input = input("Enter Soil Type: ")
+locality_input = input("Enter Locality: ")
+
+# Get results
+result = predict_crop_and_recommend(soil_input, locality_input)
+print(result)
+joblib.dump(model, 'crop_predictor.pkl')
+import pandas as pd
+import joblib
+
+# Assuming you trained the model and named it `model`
+joblib.dump(model, 'crop_predictor.pkl')
+model = joblib.load('crop_predictor.pkl')
